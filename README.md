@@ -8,6 +8,10 @@ saved selection in sequence.
 Built with **Electron** + an HTML canvas animation engine, encoded to MP4 with a
 bundled **ffmpeg** (`ffmpeg-static`, no system install required).
 
+> 📺 **First time? See [SETUP.md](SETUP.md)** for step-by-step install and a
+> walkthrough of testing the app with a real article URL. Quick start: run
+> `./run.sh` (macOS/Linux) or `run.bat` (Windows).
+
 ---
 
 ## How it works
