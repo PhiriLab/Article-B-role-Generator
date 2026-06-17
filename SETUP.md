@@ -50,10 +50,20 @@ A window titled **Article B-roll Generator** opens.
 
 ---
 
-## 4. Test with an article
+## 4. Test with an article or PDF
 
-1. **Paste an article URL** in the top bar (a news story, blog post, or Wikipedia
-   page) and click **Load**. Wait for the page to finish rendering.
+You can load **either** a web article (URL) **or** a PDF:
+
+- **Web article:** paste the URL and click **Load**.
+- **PDF:** click **Open PDF…** to choose a local file, or paste a direct `.pdf`
+  URL and click **Load** (it downloads, then renders). PDFs are rendered with a
+  selectable text layer, so highlighting works just like on a web page. Large PDFs
+  are capped to the first 40 pages for the capture.
+
+Then:
+
+1. **Load the article URL** (a news story, blog post, or Wikipedia page) and wait
+   for it to render — or open a PDF as above.
 2. **Drag-select a passage** of text in the page. It shows up in the right
    sidebar — click **＋ Save selection**. Repeat for a few passages (try a
    heading and a body paragraph).

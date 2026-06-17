@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, webContents } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, webContents, net } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -134,6 +134,48 @@ ipcMain.handle('export-encode', async (_evt, { dir, fps, outputPath }) => {
   // Best-effort cleanup of the temporary frame directory.
   fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
   return outputPath;
+});
+
+/* ------------------------------------------------------------------ *
+ *  PDF input. Open a local PDF (returned as bytes) or download one
+ *  from a URL. Rendering happens in the renderer via PDF.js.
+ * ------------------------------------------------------------------ */
+ipcMain.handle('open-pdf-dialog', async () => {
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Open a PDF article',
+    properties: ['openFile'],
+    filters: [{ name: 'PDF', extensions: ['pdf'] }]
+  });
+  if (res.canceled || !res.filePaths[0]) return null;
+  const filePath = res.filePaths[0];
+  const buf = await fsp.readFile(filePath);
+  return { name: path.basename(filePath), data: new Uint8Array(buf) };
+});
+
+ipcMain.handle('download-pdf', async (_evt, url) => {
+  if (!/^https?:\/\//i.test(url)) throw new Error('Please provide an http(s) URL.');
+  const buf = await new Promise((resolve, reject) => {
+    const chunks = [];
+    const request = net.request(url);
+    request.on('response', (response) => {
+      if (response.statusCode >= 400) {
+        reject(new Error('Download failed (HTTP ' + response.statusCode + ').'));
+        return;
+      }
+      response.on('data', (c) => chunks.push(c));
+      response.on('end', () => resolve(Buffer.concat(chunks)));
+      response.on('error', reject);
+    });
+    request.on('error', reject);
+    request.end();
+  });
+  // Light sanity check that we actually got a PDF.
+  if (buf.slice(0, 5).toString('latin1') !== '%PDF-') {
+    throw new Error('That URL did not return a PDF file.');
+  }
+  let name = 'document.pdf';
+  try { name = path.basename(new URL(url).pathname) || name; } catch (_) { /* ignore */ }
+  return { name, data: new Uint8Array(buf) };
 });
 
 ipcMain.handle('choose-export-path', async () => {

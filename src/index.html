@@ -3,16 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self';" />
+        content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' data: blob:;" />
   <title>Article B-roll Generator</title>
+  <link rel="stylesheet" href="vendor/pdf_viewer.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header id="topbar">
     <div class="brand">🎬 Article B-roll Generator</div>
     <div class="urlbar">
-      <input id="url-input" type="text" placeholder="Paste an article URL (https://…)" spellcheck="false" />
+      <input id="url-input" type="text" placeholder="Paste an article or .pdf URL (https://…)" spellcheck="false" />
       <button id="load-btn" class="btn">Load</button>
+      <button id="open-pdf-btn" class="btn">Open PDF…</button>
     </div>
     <div class="top-actions">
       <button id="capture-btn" class="btn primary" disabled>Capture page</button>
@@ -29,8 +31,9 @@
 
       <div id="page-view" class="stage-view active">
         <webview id="article" src="about:blank"></webview>
+        <div id="pdf-scroll" class="hidden"><div id="pdf-pages"></div></div>
         <div id="page-hint" class="hint">
-          Load an article, then highlight any passage and click <b>Save selection</b>.
+          Load an article or PDF, then highlight any passage and click <b>Save selection</b>.
         </div>
       </div>
 
@@ -111,6 +114,8 @@
     </div>
   </div>
 
+  <script src="vendor/pdf.min.js"></script>
+  <script src="pdf-view.js"></script>
   <script src="animator.js"></script>
   <script src="renderer.js"></script>
 </body>

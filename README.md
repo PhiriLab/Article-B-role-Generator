@@ -1,9 +1,9 @@
 # 🎬 Article B-roll Generator
 
-A desktop app that turns any web article into animated **B-roll** video. Load an
-article, highlight the passages you care about, pick an animation style for each,
-and export the result as an MP4 — the camera zooms into the page and reveals each
-saved selection in sequence.
+A desktop app that turns any web article **or PDF** into animated **B-roll** video.
+Load an article URL or open a PDF, highlight the passages you care about, pick an
+animation style for each, and export the result as an MP4 — the camera zooms into
+the page and reveals each saved selection in sequence.
 
 Built with **Electron** + an HTML canvas animation engine, encoded to MP4 with a
 bundled **ffmpeg** (`ffmpeg-static`, no system install required).

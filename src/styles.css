@@ -91,6 +91,20 @@ body { display: flex; flex-direction: column; height: 100vh; }
 .stage-view.active { display: flex; flex-direction: column; }
 
 #article { flex: 1; border: 0; background: #fff; }
+
+/* PDF view */
+.hidden { display: none !important; }
+#pdf-scroll {
+  flex: 1; overflow: auto; background: #3a3d46; padding: 18px 0;
+}
+#pdf-pages { width: max-content; margin: 0 auto; }
+.pdf-page {
+  position: relative; margin: 0 auto 14px; background: #fff;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.4);
+}
+.pdf-canvas { display: block; }
+/* pdf_viewer.css positions .textLayer absolutely over the canvas */
+.pdf-page .textLayer { position: absolute; top: 0; left: 0; }
 .hint {
   position: absolute;
   bottom: 14px; left: 50%; transform: translateX(-50%);

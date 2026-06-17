@@ -9,8 +9,11 @@ const $ = (sel) => document.querySelector(sel);
 const els = {
   urlInput: $('#url-input'),
   loadBtn: $('#load-btn'),
+  openPdfBtn: $('#open-pdf-btn'),
   captureBtn: $('#capture-btn'),
   article: $('#article'),
+  pdfScroll: $('#pdf-scroll'),
+  pdfPages: $('#pdf-pages'),
   pageHint: $('#page-hint'),
   saveBtn: $('#save-selection-btn'),
   pending: $('#pending'),
@@ -36,6 +39,7 @@ const els = {
 const OUT_W = 1920, OUT_H = 1080, FPS = 30;
 
 const state = {
+  mode: 'web',          // 'web' (article webview) | 'pdf' (PDF.js view)
   pending: null,        // { text, rects, bbox }
   selections: [],       // saved selection configs
   screenshot: null,     // { img, w, h }
@@ -59,16 +63,71 @@ function normalizeUrl(raw) {
   return u;
 }
 
+function showWeb() {
+  els.article.classList.remove('hidden');
+  els.pdfScroll.classList.add('hidden');
+}
+function showPdf() {
+  els.article.classList.add('hidden');
+  els.pdfScroll.classList.remove('hidden');
+}
+
 function loadArticle() {
   const url = normalizeUrl(els.urlInput.value);
   if (!url) return;
-  setStatus('Loading article…');
+  if (/\.pdf(\?|#|$)/i.test(url)) { loadPdfFromUrl(url); return; }
   resetForNewPage();
+  state.mode = 'web';
+  showWeb();
+  setStatus('Loading article…');
   els.article.src = url;
+}
+
+async function startPdf(data, name) {
+  resetForNewPage();
+  state.mode = 'pdf';
+  showPdf();
+  setStatus('Rendering PDF…');
+  try {
+    const r = await window.PdfView.load(data, { maxPages: 40 });
+    els.captureBtn.disabled = false;
+    const pageInfo = r.truncated
+      ? 'first ' + r.renderedPages + ' of ' + r.pageCount + ' pages'
+      : r.pageCount + ' page' + (r.pageCount === 1 ? '' : 's');
+    setStatus('PDF ready (' + pageInfo + (name ? ' · ' + name : '') +
+      '). Highlight a passage to begin.');
+  } catch (err) {
+    setStatus('Failed to render PDF: ' + err.message);
+  }
+}
+
+async function loadPdfFromUrl(url) {
+  resetForNewPage();
+  state.mode = 'pdf';
+  showPdf();
+  setStatus('Downloading PDF…');
+  try {
+    const f = await window.api.downloadPdf(url);
+    await startPdf(f.data, f.name);
+  } catch (err) {
+    setStatus('PDF download failed: ' + err.message);
+    state.mode = 'web';
+    showWeb();
+  }
 }
 
 els.loadBtn.addEventListener('click', loadArticle);
 els.urlInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') loadArticle(); });
+
+els.openPdfBtn.addEventListener('click', async () => {
+  let f;
+  try { f = await window.api.openPdf(); } catch (err) { setStatus('Open failed: ' + err.message); return; }
+  if (!f) return;
+  startPdf(f.data, f.name);
+});
+
+// Selections from the PDF text layer funnel into the same pending pipeline.
+window.PdfView.init(els.pdfPages, (info) => { if (state.mode === 'pdf') setPending(info); });
 
 els.article.addEventListener('did-finish-load', () => {
   els.captureBtn.disabled = false;
@@ -79,10 +138,8 @@ els.article.addEventListener('did-fail-load', (e) => {
   setStatus('Could not load that page (' + (e.errorDescription || e.errorCode) + ').');
 });
 
-// Selection geometry reported from the injected webview preload.
-els.article.addEventListener('ipc-message', (e) => {
-  if (e.channel !== 'broll-selection') return;
-  const info = e.args[0];
+// Common pending-selection handler for both the webview and the PDF view.
+function setPending(info) {
   state.pending = info;
   if (info && info.text) {
     els.pending.textContent = '“' + info.text + '”';
@@ -93,6 +150,12 @@ els.article.addEventListener('ipc-message', (e) => {
     els.pending.classList.add('empty');
     els.saveBtn.disabled = true;
   }
+}
+
+// Selection geometry reported from the injected webview preload.
+els.article.addEventListener('ipc-message', (e) => {
+  if (e.channel !== 'broll-selection') return;
+  if (state.mode === 'web') setPending(e.args[0]);
 });
 
 function resetForNewPage() {
@@ -101,6 +164,7 @@ function resetForNewPage() {
   state.screenshot = null;
   state.scene = null;
   stopPlayback();
+  window.PdfView.clear();
   renderList();
   els.pending.textContent = 'No text selected.';
   els.pending.classList.add('empty');
@@ -183,8 +247,14 @@ els.captureBtn.addEventListener('click', async () => {
   try {
     setStatus('Capturing full page…');
     els.captureBtn.disabled = true;
-    const wcId = els.article.getWebContentsId();
-    const shot = await window.api.captureFullPage(wcId);
+
+    let shot;
+    if (state.mode === 'pdf') {
+      shot = window.PdfView.capture();
+    } else {
+      const wcId = els.article.getWebContentsId();
+      shot = await window.api.captureFullPage(wcId);
+    }
 
     const img = new Image();
     img.onload = () => {

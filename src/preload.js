@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld('api', {
   captureFullPage: (webContentsId) =>
     ipcRenderer.invoke('capture-full-page', webContentsId),
 
+  openPdf: () => ipcRenderer.invoke('open-pdf-dialog'),
+  downloadPdf: (url) => ipcRenderer.invoke('download-pdf', url),
+
   chooseExportPath: () => ipcRenderer.invoke('choose-export-path'),
 
   exportBegin: () => ipcRenderer.invoke('export-begin'),
