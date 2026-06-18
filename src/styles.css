@@ -189,6 +189,16 @@ body { display: flex; flex-direction: column; height: 100vh; }
 .sidebar-foot { border-top: 1px solid var(--line); padding: 12px 16px; }
 .sidebar-foot .row { flex-direction: row; align-items: center; justify-content: space-between; }
 .sidebar-foot .row input { width: 90px; }
+.btn.small { padding: 5px 10px; font-size: 12px; }
+.total-row { flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; }
+.total-readout {
+  font-variant-numeric: tabular-nums; font-weight: 700; font-size: 15px;
+  padding: 3px 8px; border-radius: 6px; background: var(--panel-2); color: var(--text);
+}
+.total-readout.in-range { color: #5ad17f; }
+.total-readout.out-range { color: #ffc24b; }
+.btn.attention { animation: pulse 0.5s ease 3; border-color: #ffc24b; }
+@keyframes pulse { 50% { background: #ffc24b; color: #1b1d24; } }
 .muted { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
 
 /* ---------- export overlay ---------- */

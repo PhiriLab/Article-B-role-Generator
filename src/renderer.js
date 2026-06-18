@@ -19,6 +19,9 @@ const els = {
   pending: $('#pending'),
   list: $('#selection-list'),
   introDur: $('#intro-dur'),
+  targetDur: $('#target-dur'),
+  totalReadout: $('#total-readout'),
+  fitBtn: $('#fit-btn'),
   status: $('#status'),
   tabs: document.querySelectorAll('.tab'),
   previewTab: $('#preview-tab'),
@@ -37,6 +40,7 @@ const els = {
 };
 
 const OUT_W = 1920, OUT_H = 1080, FPS = 30;
+const MIN_TOTAL = 60, MAX_TOTAL = 180; // exported B-roll must be 1–3 minutes
 
 const state = {
   mode: 'web',          // 'web' (article webview) | 'pdf' (PDF.js view)
@@ -220,7 +224,7 @@ function renderList() {
     styleSel.addEventListener('change', () => { sel.style = styleSel.value; rebuildScene(); });
     durInput.addEventListener('change', () => {
       sel.durationSec = Math.max(0.5, parseFloat(durInput.value) || 3);
-      durInput.value = sel.durationSec; rebuildScene();
+      durInput.value = sel.durationSec; rebuildScene(); updateTotalReadout();
     });
     hlInput.addEventListener('input', () => { sel.highlightColor = hlInput.value; renderCurrentFrame(); });
     bdInput.addEventListener('input', () => { sel.borderColor = bdInput.value; renderCurrentFrame(); });
@@ -229,13 +233,65 @@ function renderList() {
       state.selections = state.selections.filter((s) => s.id !== sel.id);
       renderList();
       rebuildScene();
+      updateTotalReadout();
     });
 
     els.list.appendChild(node);
   });
+  updateTotalReadout();
 }
 
-els.introDur.addEventListener('change', rebuildScene);
+els.introDur.addEventListener('change', () => { rebuildScene(); updateTotalReadout(); });
+
+/* ----------------------- duration window (1–3 min) ----------------------- */
+
+function fmtTime(t) {
+  const m = Math.floor(t / 60), s = Math.round(t % 60);
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+// Total length independent of capture, mirroring how buildScene sums steps.
+function computeTotal() {
+  const intro = parseFloat(els.introDur.value) || 0;
+  const sum = state.selections.reduce((acc, x) => acc + Math.max(0.5, x.durationSec || 0), 0);
+  return (intro > 0.01 ? intro : 0) + sum;
+}
+
+function updateTotalReadout() {
+  const total = computeTotal();
+  els.totalReadout.textContent = fmtTime(total);
+  const inRange = total >= MIN_TOTAL && total <= MAX_TOTAL;
+  els.totalReadout.classList.toggle('in-range', state.selections.length > 0 && inRange);
+  els.totalReadout.classList.toggle('out-range', state.selections.length > 0 && !inRange);
+  els.fitBtn.disabled = state.selections.length === 0;
+  els.totalReadout.title = inRange
+    ? 'Within the 1–3 minute window'
+    : 'Outside 1–3 min — use “Fit to target” before exporting';
+}
+
+// Scale every step's duration so the total lands on the chosen target.
+function fitToTarget() {
+  if (state.selections.length === 0) return;
+  let target = parseFloat(els.targetDur.value) || 90;
+  target = Math.max(MIN_TOTAL, Math.min(MAX_TOTAL, target));
+  els.targetDur.value = target;
+
+  const intro = parseFloat(els.introDur.value) || 0;
+  const minSum = state.selections.length * 0.5;
+  let budget = Math.max(minSum, target - (intro > 0.01 ? intro : 0));
+  const curSum = state.selections.reduce((a, x) => a + Math.max(0.5, x.durationSec || 0), 0) || 1;
+  const k = budget / curSum;
+  state.selections.forEach((x) => {
+    x.durationSec = Math.max(0.5, Math.round(Math.max(0.5, x.durationSec || 0) * k * 10) / 10);
+  });
+
+  renderList();
+  rebuildScene();
+  setStatus('Fit step durations to ' + fmtTime(computeTotal()) + ' (target ' + fmtTime(target) + ').');
+}
+
+els.fitBtn.addEventListener('click', fitToTarget);
+els.targetDur.addEventListener('change', updateTotalReadout);
 
 /* ----------------------- capture ----------------------- */
 
@@ -372,11 +428,21 @@ els.tabs.forEach((t) => {
 
 els.exportBtn.addEventListener('click', async () => {
   if (!state.scene) return;
+
+  // Enforce the 1–3 minute window before exporting.
+  const total = state.scene.totalDuration;
+  if (total < MIN_TOTAL || total > MAX_TOTAL) {
+    setStatus('Length is ' + fmtTime(total) + ' — must be between 1:00 and 3:00. ' +
+      'Click “Fit to target” (or adjust step durations) first.');
+    els.fitBtn.classList.add('attention');
+    setTimeout(() => els.fitBtn.classList.remove('attention'), 1500);
+    return;
+  }
+
   const outputPath = await window.api.chooseExportPath();
   if (!outputPath) return;
 
   stopPlayback();
-  const total = state.scene.totalDuration;
   const frames = Math.max(1, Math.ceil(total * FPS));
 
   // Render to an offscreen canvas so the visible one is untouched.
@@ -422,3 +488,6 @@ function setExportProgress(pct, status) {
 
 /* ----------------------- misc ----------------------- */
 function setStatus(msg) { els.status.textContent = msg; }
+
+// Initialise the total readout on load.
+updateTotalReadout();

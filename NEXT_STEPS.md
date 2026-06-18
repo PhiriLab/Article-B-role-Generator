@@ -89,7 +89,7 @@ narration line (for §2).
 ---
 
 ## Suggested build order for next session
-1. Live total-duration indicator + 1–3 min enforcement / "Fit to target". (small)
+1. ✅ DONE — Live total-duration indicator + 1–3 min enforcement / "Fit to target".
 2. Narration field per selection + ffmpeg audio mux with OS TTS default. (medium)
 3. Auto-highlight extraction (heuristic first, then Claude API option). (medium)
 4. Wire duration to narration length; settings panel for voice + API key. (small)
