@@ -10,6 +10,7 @@ const els = {
   urlInput: $('#url-input'),
   loadBtn: $('#load-btn'),
   openPdfBtn: $('#open-pdf-btn'),
+  autoBtn: $('#auto-btn'),
   captureBtn: $('#capture-btn'),
   article: $('#article'),
   pdfScroll: $('#pdf-scroll'),
@@ -95,6 +96,7 @@ async function startPdf(data, name) {
   try {
     const r = await window.PdfView.load(data, { maxPages: 40 });
     els.captureBtn.disabled = false;
+    els.autoBtn.disabled = false;
     const pageInfo = r.truncated
       ? 'first ' + r.renderedPages + ' of ' + r.pageCount + ' pages'
       : r.pageCount + ' page' + (r.pageCount === 1 ? '' : 's');
@@ -177,6 +179,7 @@ function resetForNewPage() {
   els.exportBtn.disabled = true;
   els.playBtn.disabled = true;
   els.scrub.disabled = true;
+  els.autoBtn.disabled = true;
   switchTab('page');
 }
 
@@ -295,15 +298,14 @@ els.targetDur.addEventListener('change', updateTotalReadout);
 
 /* ----------------------- capture ----------------------- */
 
-els.captureBtn.addEventListener('click', async () => {
+async function doCapture() {
   if (state.selections.length === 0) {
-    setStatus('Add at least one selection before capturing.');
-    return;
+    setStatus('Add or auto-detect at least one selection before capturing.');
+    return false;
   }
+  setStatus('Capturing full page…');
+  els.captureBtn.disabled = true;
   try {
-    setStatus('Capturing full page…');
-    els.captureBtn.disabled = true;
-
     let shot;
     if (state.mode === 'pdf') {
       shot = window.PdfView.capture();
@@ -312,25 +314,60 @@ els.captureBtn.addEventListener('click', async () => {
       shot = await window.api.captureFullPage(wcId);
     }
 
-    const img = new Image();
-    img.onload = () => {
-      state.screenshot = { img, w: shot.width, h: shot.height };
-      rebuildScene();
-      els.previewTab.disabled = false;
-      switchTab('preview');
-      setStatus('Captured. Press Play to preview, then Export.');
-      els.captureBtn.disabled = false;
-    };
-    img.onerror = () => {
-      setStatus('Failed to decode the screenshot.');
-      els.captureBtn.disabled = false;
-    };
-    img.src = shot.dataUrl;
+    await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => { state.screenshot = { img, w: shot.width, h: shot.height }; resolve(); };
+      img.onerror = () => reject(new Error('Failed to decode the screenshot.'));
+      img.src = shot.dataUrl;
+    });
+
+    rebuildScene();
+    els.previewTab.disabled = false;
+    switchTab('preview');
+    setStatus('Captured. Press Play to preview, then Export.');
+    return true;
   } catch (err) {
     setStatus('Capture failed: ' + err.message);
+    return false;
+  } finally {
     els.captureBtn.disabled = false;
   }
-});
+}
+
+els.captureBtn.addEventListener('click', doCapture);
+
+// One-click: detect the paper's key highlights, capture, and fit to target.
+async function autoHighlight() {
+  if (state.mode !== 'pdf') {
+    setStatus('Auto-highlight currently supports PDFs. Load a PDF to use it.');
+    return;
+  }
+  const info = window.PdfView.getTextItems();
+  const hs = window.Highlights.fromTextItems(info);
+  if (!hs.length) {
+    setStatus('Could not detect key highlights automatically — try highlighting manually.');
+    return;
+  }
+  state.selections = hs.map((h) => ({
+    id: nextId++,
+    text: h.text,
+    rects: h.rects,
+    bbox: h.bbox,
+    style: h.style,
+    durationSec: 8,
+    highlightColor: '#ffd400',
+    borderColor: '#ff2d55'
+  }));
+  renderList();
+  setStatus(hs.length + ' key highlights detected. Capturing…');
+  const ok = await doCapture();
+  if (ok) {
+    fitToTarget();
+    setStatus(hs.length + ' key highlights · ' + fmtTime(computeTotal()) + ' digest ready. Press Play, then Export.');
+  }
+}
+
+els.autoBtn.addEventListener('click', autoHighlight);
 
 function rebuildScene() {
   if (!state.screenshot || state.selections.length === 0) {

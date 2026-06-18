@@ -22,6 +22,7 @@
   let pagesEl = null;     // container holding the page wrappers
   let onSelection = null; // callback(info|null)
   let pageLayout = [];    // [{ canvas, y0, width, height }]
+  let textItems = [];     // [{ str, page, x, y, w, h }] in stitched-image coords
   let totalHeight = 0;
   let maxWidth = 0;
 
@@ -35,6 +36,7 @@
   function clear() {
     if (pagesEl) pagesEl.innerHTML = '';
     pageLayout = [];
+    textItems = [];
     totalHeight = 0;
     maxWidth = 0;
   }
@@ -85,6 +87,14 @@
         viewport,
         textDivs: []
       }).promise;
+
+      // Record text geometry (in stitched-image coords) for auto-highlighting.
+      for (const it of textContent.items) {
+        if (!it.str || !it.str.trim()) continue;
+        const m = pdfjsLib.Util.transform(viewport.transform, it.transform);
+        const fh = Math.hypot(m[2], m[3]) || (it.height * scale);
+        textItems.push({ str: it.str, page: n, x: m[4], y: y0 + (m[5] - fh), w: it.width * scale, h: fh });
+      }
 
       pageLayout.push({ canvas, y0, width: w, height: h });
       y0 += h;
@@ -145,5 +155,9 @@
     return { dataUrl: out.toDataURL('image/png'), width: maxWidth, height: totalHeight };
   }
 
-  window.PdfView = { init, load, clear, capture };
+  function getTextItems() {
+    return { items: textItems.slice(), width: maxWidth, height: totalHeight };
+  }
+
+  window.PdfView = { init, load, clear, capture, getTextItems };
 })();
