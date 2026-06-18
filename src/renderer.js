@@ -23,6 +23,8 @@ const els = {
   targetDur: $('#target-dur'),
   totalReadout: $('#total-readout'),
   fitBtn: $('#fit-btn'),
+  voiceToggle: $('#voice-toggle'),
+  voiceEng: $('#voice-eng'),
   status: $('#status'),
   tabs: document.querySelectorAll('.tab'),
   previewTab: $('#preview-tab'),
@@ -45,6 +47,7 @@ const MIN_TOTAL = 60, MAX_TOTAL = 180; // exported B-roll must be 1–3 minutes
 
 const state = {
   mode: 'web',          // 'web' (article webview) | 'pdf' (PDF.js view)
+  ttsEngine: null,      // name of the OS voice engine, or null if none
   pending: null,        // { text, rects, bbox }
   selections: [],       // saved selection configs
   screenshot: null,     // { img, w, h }
@@ -190,6 +193,7 @@ els.saveBtn.addEventListener('click', () => {
   state.selections.push({
     id: nextId++,
     text: state.pending.text,
+    narration: state.pending.text,
     rects: state.pending.rects,
     bbox: state.pending.bbox,
     style: 'headline',
@@ -231,6 +235,10 @@ function renderList() {
     });
     hlInput.addEventListener('input', () => { sel.highlightColor = hlInput.value; renderCurrentFrame(); });
     bdInput.addEventListener('input', () => { sel.borderColor = bdInput.value; renderCurrentFrame(); });
+
+    const narrInput = node.querySelector('.narr-input');
+    narrInput.value = sel.narration || '';
+    narrInput.addEventListener('input', () => { sel.narration = narrInput.value; });
 
     node.querySelector('.del').addEventListener('click', () => {
       state.selections = state.selections.filter((s) => s.id !== sel.id);
@@ -351,6 +359,7 @@ async function autoHighlight() {
   state.selections = hs.map((h) => ({
     id: nextId++,
     text: h.text,
+    narration: h.text,
     rects: h.rects,
     bbox: h.bbox,
     style: h.style,
@@ -465,47 +474,95 @@ els.tabs.forEach((t) => {
 
 els.exportBtn.addEventListener('click', async () => {
   if (!state.scene) return;
-
-  // Enforce the 1–3 minute window before exporting.
-  const total = state.scene.totalDuration;
-  if (total < MIN_TOTAL || total > MAX_TOTAL) {
-    setStatus('Length is ' + fmtTime(total) + ' — must be between 1:00 and 3:00. ' +
-      'Click “Fit to target” (or adjust step durations) first.');
-    els.fitBtn.classList.add('attention');
-    setTimeout(() => els.fitBtn.classList.remove('attention'), 1500);
-    return;
-  }
-
-  const outputPath = await window.api.chooseExportPath();
-  if (!outputPath) return;
-
   stopPlayback();
-  const frames = Math.max(1, Math.ceil(total * FPS));
 
-  // Render to an offscreen canvas so the visible one is untouched.
-  const off = document.createElement('canvas');
-  off.width = OUT_W; off.height = OUT_H;
-  const octx = off.getContext('2d');
+  const voiceOn = els.voiceToggle.checked && !!state.ttsEngine;
+  let narrDir = null;       // temp dir holding narration wavs
+  let narrByIndex = {};     // selection index -> wav path
 
-  showOverlay(true, 'Exporting…', 'Rendering frames…');
-
-  let dir = null;
   try {
-    dir = await window.api.exportBegin();
-    for (let i = 0; i < frames; i++) {
-      state.scene.render(octx, i / FPS);
-      const dataUrl = off.toDataURL('image/png');
-      await window.api.exportFrame({ dir, index: i, dataUrl });
-      const pct = Math.round(((i + 1) / frames) * 100);
-      setExportProgress(pct, 'Rendering frame ' + (i + 1) + ' of ' + frames + '…');
+    // 1) Voiceover: synthesize narration first so step lengths can fit speech.
+    if (voiceOn) {
+      showOverlay(true, 'Exporting…', 'Generating narration…');
+      narrDir = await window.api.exportBegin();
+      const items = state.selections.map((s, i) => ({ index: i, text: (s.narration || s.text || '').trim() }))
+        .filter((it) => it.text);
+      const { engine, results } = await window.api.ttsSynthesize({ dir: narrDir, items });
+      if (engine && results.length) {
+        results.forEach((r) => {
+          if (r.wav && r.duration > 0) {
+            narrByIndex[r.index] = r.wav;
+            // step must be long enough to speak the line (+ a short tail)
+            const need = r.duration + 0.6;
+            if (state.selections[r.index]) {
+              state.selections[r.index].durationSec = Math.max(state.selections[r.index].durationSec, +need.toFixed(2));
+            }
+          }
+        });
+        renderList();
+        rebuildScene();
+        updateTotalReadout();
+      }
     }
-    setExportProgress(100, 'Encoding MP4 (ffmpeg)…');
-    await window.api.exportEncode({ dir, fps: FPS, outputPath });
+
+    // 2) Enforce the 1–3 minute window (after any narration adjustment).
+    const total = state.scene.totalDuration;
+    if (total < MIN_TOTAL || total > MAX_TOTAL) {
+      showOverlay(false);
+      if (narrDir) window.api.exportCancelCleanup(narrDir);
+      setStatus('Length is ' + fmtTime(total) + ' — must be between 1:00 and 3:00. ' +
+        (total < MIN_TOTAL ? 'Add highlights or raise durations' : 'Remove highlights or lower durations') +
+        ', then export again.');
+      els.fitBtn.classList.add('attention');
+      setTimeout(() => els.fitBtn.classList.remove('attention'), 1500);
+      return;
+    }
+
+    const outputPath = await window.api.chooseExportPath();
+    if (!outputPath) { showOverlay(false); if (narrDir) window.api.exportCancelCleanup(narrDir); return; }
+
+    const frames = Math.max(1, Math.ceil(total * FPS));
+    const off = document.createElement('canvas');
+    off.width = OUT_W; off.height = OUT_H;
+    const octx = off.getContext('2d');
+
+    // 3) Render frames -> silent MP4.
+    showOverlay(true, 'Exporting…', 'Rendering frames…');
+    const dir = await window.api.exportBegin();
+    try {
+      for (let i = 0; i < frames; i++) {
+        state.scene.render(octx, i / FPS);
+        await window.api.exportFrame({ dir, index: i, dataUrl: off.toDataURL('image/png') });
+        setExportProgress(Math.round(((i + 1) / frames) * 100), 'Rendering frame ' + (i + 1) + ' of ' + frames + '…');
+      }
+      setExportProgress(100, 'Encoding MP4 (ffmpeg)…');
+      await window.api.exportEncode({ dir, fps: FPS, outputPath });
+    } catch (e) {
+      window.api.exportCancelCleanup(dir);
+      throw e;
+    }
+
+    // 4) Voiceover: assemble a timeline-aligned track and mux it in.
+    if (voiceOn && Object.keys(narrByIndex).length) {
+      setExportProgress(100, 'Adding voiceover…');
+      const intro = parseFloat(els.introDur.value) || 0;
+      const segments = [];
+      if (intro > 0.01) segments.push({ len: intro, wav: null });
+      state.selections.forEach((s, i) => {
+        segments.push({ len: Math.max(0.5, s.durationSec), wav: narrByIndex[i] || null });
+      });
+      await window.api.muxAudio({ dir: narrDir, videoPath: outputPath, outputPath, segments });
+      narrDir = null; // muxAudio cleans it up
+    } else if (narrDir) {
+      window.api.exportCancelCleanup(narrDir);
+      narrDir = null;
+    }
+
     showOverlay(true, 'Done ✓', 'Saved to ' + outputPath);
     setTimeout(() => showOverlay(false), 1800);
-    setStatus('Exported: ' + outputPath);
+    setStatus('Exported' + (voiceOn ? ' with voiceover' : '') + ': ' + outputPath);
   } catch (err) {
-    if (dir) window.api.exportCancelCleanup(dir);
+    if (narrDir) window.api.exportCancelCleanup(narrDir);
     showOverlay(true, 'Export failed', err.message);
     setTimeout(() => showOverlay(false), 3000);
     setStatus('Export failed: ' + err.message);
@@ -528,3 +585,21 @@ function setStatus(msg) { els.status.textContent = msg; }
 
 // Initialise the total readout on load.
 updateTotalReadout();
+
+// Detect the OS voice engine and configure the voiceover toggle.
+(async () => {
+  try {
+    const eng = await window.api.ttsAvailable();
+    state.ttsEngine = eng;
+    if (eng) {
+      els.voiceToggle.checked = true;
+      els.voiceEng.textContent = '(' + eng + ')';
+    } else {
+      els.voiceToggle.checked = false;
+      els.voiceToggle.disabled = true;
+      els.voiceEng.textContent = '— no system voice found';
+    }
+  } catch (_) {
+    els.voiceToggle.disabled = true;
+  }
+})();

@@ -6,6 +6,7 @@ const os = require('os');
 const fs = require('fs');
 const fsp = require('fs/promises');
 const { spawn } = require('child_process');
+const tts = require('./tts');
 
 // ffmpeg-static resolves to the bundled binary for the current platform.
 let ffmpegPath = require('ffmpeg-static');
@@ -132,6 +133,87 @@ ipcMain.handle('export-encode', async (_evt, { dir, fps, outputPath }) => {
   });
 
   // Best-effort cleanup of the temporary frame directory.
+  fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
+  return outputPath;
+});
+
+/* ------------------------------------------------------------------ *
+ *  Voiceover. Synthesize narration with the OS voice, then assemble a
+ *  timeline-aligned audio track and mux it into the exported MP4.
+ * ------------------------------------------------------------------ */
+function runFfmpeg(args) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(ffmpegPath, args);
+    let stderr = '';
+    proc.stderr.on('data', (d) => { stderr += d.toString(); });
+    proc.on('error', reject);
+    proc.on('close', (code) => code === 0 ? resolve(stderr)
+      : reject(new Error('ffmpeg failed (' + code + '):\n' + stderr.slice(-1200))));
+  });
+}
+
+function parseDuration(stderr) {
+  const m = /Duration:\s*(\d+):(\d+):(\d+\.\d+)/.exec(stderr);
+  if (!m) return 0;
+  return (+m[1]) * 3600 + (+m[2]) * 60 + parseFloat(m[3]);
+}
+
+ipcMain.handle('tts-available', async () => {
+  const eng = tts.detectEngine();
+  return eng ? eng.engine : null;
+});
+
+// items: [{ index, text }]. Returns { engine, results:[{ index, wav, duration }] }.
+ipcMain.handle('tts-synthesize', async (_evt, { dir, items, voice, rate }) => {
+  const engine = tts.detectEngine();
+  if (!engine) return { engine: null, results: [] };
+
+  const results = [];
+  for (const it of items) {
+    const raw = path.join(dir, 'raw_' + it.index + '.' + engine.ext);
+    const wav = path.join(dir, 'narr_' + it.index + '.wav');
+    try {
+      await tts.synthesize(it.text, raw, { engine, voice, rate });
+      // Normalise to a uniform PCM wav and read its duration from ffmpeg.
+      const stderr = await runFfmpeg(['-y', '-i', raw, '-ar', '22050', '-ac', '1',
+        '-c:a', 'pcm_s16le', wav]);
+      results.push({ index: it.index, wav, duration: parseDuration(stderr) });
+    } catch (err) {
+      results.push({ index: it.index, wav: null, duration: 0, error: err.message });
+    }
+  }
+  return { engine: engine.engine, results };
+});
+
+// segments: ordered [{ len, wav|null }] spanning the whole timeline.
+ipcMain.handle('mux-audio', async (_evt, { dir, videoPath, outputPath, segments }) => {
+  const clips = [];
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    const clip = path.join(dir, 'seg_' + String(i).padStart(4, '0') + '.wav');
+    const len = Math.max(0.05, seg.len).toFixed(3);
+    if (seg.wav) {
+      // Narration padded with trailing silence to fill the segment exactly.
+      await runFfmpeg(['-y', '-i', seg.wav, '-af', 'apad', '-t', len,
+        '-ar', '22050', '-ac', '1', '-c:a', 'pcm_s16le', clip]);
+    } else {
+      await runFfmpeg(['-y', '-f', 'lavfi', '-i', 'anullsrc=r=22050:cl=mono',
+        '-t', len, '-c:a', 'pcm_s16le', clip]);
+    }
+    clips.push(clip);
+  }
+
+  const listFile = path.join(dir, 'concat.txt');
+  await fsp.writeFile(listFile, clips.map((c) => "file '" + c + "'").join('\n'));
+  const fullWav = path.join(dir, 'full.wav');
+  await runFfmpeg(['-y', '-f', 'concat', '-safe', '0', '-i', listFile, '-c', 'copy', fullWav]);
+
+  const tmpOut = outputPath + '.tmp.mp4';
+  await runFfmpeg(['-y', '-i', videoPath, '-i', fullWav,
+    '-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k',
+    '-shortest', tmpOut]);
+  await fsp.rename(tmpOut, outputPath);
+
   fsp.rm(dir, { recursive: true, force: true }).catch(() => {});
   return outputPath;
 });

@@ -177,6 +177,16 @@ body { display: flex; flex-direction: column; height: 100vh; }
 .icon-btn:hover { color: var(--danger); }
 
 .card-grid { margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+.narr-row { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.narr-row textarea {
+  background: var(--panel); border: 1px solid var(--line); color: var(--text);
+  border-radius: 8px; padding: 6px 8px; font-size: 12px; resize: vertical; outline: none;
+  font-family: inherit;
+}
+.narr-row textarea:focus { border-color: var(--accent); }
+.toggle-row { flex-direction: row; align-items: center; justify-content: space-between; }
+.toggle-row input { width: auto; }
+.muted-inline { color: var(--muted); font-size: 11px; }
 .row { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
 .row span { font-weight: 500; }
 .row select, .row input {

@@ -88,6 +88,14 @@ narration line (for §2).
 
 ---
 
+## Status
+- ✅ DONE — Live total-duration indicator + 1–3 min enforcement / "Fit to target".
+- ✅ DONE — Auto-highlight (PDF): detect title/abstract/key sections.
+- ✅ DONE — Voiceover: OS TTS (say / SAPI / espeak-ng) + ffmpeg audio mux, with
+  per-selection narration field and graceful fallback when no engine is found.
+- ⏳ TODO — Cloud TTS option (natural voice via API key) + AI summary narration
+  (Claude) — see decisions below. Auto-highlight for web articles (DOM-based).
+
 ## Suggested build order for next session
 1. ✅ DONE — Live total-duration indicator + 1–3 min enforcement / "Fit to target".
 2. Narration field per selection + ffmpeg audio mux with OS TTS default. (medium)

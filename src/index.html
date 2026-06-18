@@ -76,6 +76,10 @@
           <span id="total-readout" class="total-readout">0:00</span>
           <button id="fit-btn" class="btn small" disabled>Fit to target</button>
         </div>
+        <label class="row toggle-row">
+          <span>Voiceover <small id="voice-eng" class="muted-inline"></small></span>
+          <input id="voice-toggle" type="checkbox" />
+        </label>
         <p class="muted" id="status"></p>
       </div>
     </aside>
@@ -112,6 +116,10 @@
           <input class="bd-input" type="color" value="#ff2d55" />
         </label>
       </div>
+      <label class="narr-row">
+        <span>Narration</span>
+        <textarea class="narr-input" rows="2" placeholder="Spoken line for this highlight…"></textarea>
+      </label>
     </div>
   </template>
 

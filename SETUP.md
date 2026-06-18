@@ -60,6 +60,16 @@ You can load **either** a web article (URL) **or** a PDF:
   selectable text layer, so highlighting works just like on a web page. Large PDFs
   are capped to the first 40 pages for the capture.
 
+### Auto-highlight & voiceover (PDF digests)
+
+- **✨ Auto-highlight** (PDFs): one click detects the paper's title, abstract, and
+  key sections, queues them as styled selections, captures, and fits the result to
+  your **target length** (the 1–3 minute window is enforced on export).
+- **Voiceover**: toggle it on to narrate each highlight with your computer's voice
+  (macOS `say`, Windows SAPI, Linux `espeak-ng`). Edit the **Narration** text on
+  each card. On **Linux** install a voice first: `sudo apt install espeak-ng`. If no
+  voice engine is found the toggle is disabled and export stays silent.
+
 Then:
 
 1. **Load the article URL** (a news story, blog post, or Wikipedia page) and wait

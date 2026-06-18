@@ -20,6 +20,10 @@ contextBridge.exposeInMainWorld('api', {
 
   chooseExportPath: () => ipcRenderer.invoke('choose-export-path'),
 
+  ttsAvailable: () => ipcRenderer.invoke('tts-available'),
+  ttsSynthesize: (payload) => ipcRenderer.invoke('tts-synthesize', payload),
+  muxAudio: (payload) => ipcRenderer.invoke('mux-audio', payload),
+
   exportBegin: () => ipcRenderer.invoke('export-begin'),
   exportFrame: (payload) => ipcRenderer.invoke('export-frame', payload),
   exportEncode: (payload) => ipcRenderer.invoke('export-encode', payload),
