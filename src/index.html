@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' blob:; worker-src 'self' blob:; connect-src 'self' data: blob:;" />
+  <title>Article B-roll Generator</title>
+  <link rel="stylesheet" href="vendor/pdf_viewer.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header id="topbar">
+    <div class="brand">🎬 Article B-roll Generator</div>
+    <div class="urlbar">
+      <input id="url-input" type="text" placeholder="Paste an article or .pdf URL (https://…)" spellcheck="false" />
+      <button id="load-btn" class="btn">Load</button>
+      <button id="open-pdf-btn" class="btn">Open PDF…</button>
+    </div>
+    <div class="top-actions">
+      <button id="auto-btn" class="btn" disabled>✨ Auto-highlight</button>
+      <button id="capture-btn" class="btn primary" disabled>Capture page</button>
+    </div>
+  </header>
+
+  <main id="workspace">
+    <!-- LEFT: the live article + the captured/animated preview -->
+    <section id="stage">
+      <div id="stage-tabs">
+        <button class="tab active" data-view="page">Article</button>
+        <button class="tab" data-view="preview" id="preview-tab" disabled>B-roll preview</button>
+      </div>
+
+      <div id="page-view" class="stage-view active">
+        <webview id="article" src="about:blank"></webview>
+        <div id="pdf-scroll" class="hidden"><div id="pdf-pages"></div></div>
+        <div id="page-hint" class="hint">
+          Load an article or PDF, then highlight any passage and click <b>Save selection</b>.
+        </div>
+      </div>
+
+      <div id="preview-view" class="stage-view">
+        <div id="canvas-wrap">
+          <canvas id="preview-canvas" width="1920" height="1080"></canvas>
+        </div>
+        <div id="transport">
+          <button id="play-btn" class="btn" disabled>▶ Play</button>
+          <input id="scrub" type="range" min="0" max="1000" value="0" disabled />
+          <span id="time-label" class="time">0.0s / 0.0s</span>
+          <button id="export-btn" class="btn primary" disabled>⬇ Export MP4</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT: selection queue + per-selection controls -->
+    <aside id="sidebar">
+      <div class="sidebar-head">
+        <h2>Selections</h2>
+        <button id="save-selection-btn" class="btn" disabled>＋ Save selection</button>
+      </div>
+
+      <div id="pending" class="pending empty">No text selected.</div>
+
+      <div id="selection-list"></div>
+
+      <div class="sidebar-foot">
+        <label class="row">
+          <span>Intro shot (s)</span>
+          <input id="intro-dur" type="number" min="0" max="6" step="0.1" value="1.2" />
+        </label>
+        <label class="row">
+          <span>Target length (s)</span>
+          <input id="target-dur" type="number" min="60" max="180" step="5" value="90" />
+        </label>
+        <div class="row total-row">
+          <span>Total</span>
+          <span id="total-readout" class="total-readout">0:00</span>
+          <button id="fit-btn" class="btn small" disabled>Fit to target</button>
+        </div>
+        <label class="row toggle-row">
+          <span>Voiceover <small id="voice-eng" class="muted-inline"></small></span>
+          <input id="voice-toggle" type="checkbox" />
+        </label>
+        <p class="muted" id="status"></p>
+      </div>
+    </aside>
+  </main>
+
+  <!-- Template for a single selection card -->
+  <template id="selection-card-template">
+    <div class="card">
+      <div class="card-head">
+        <span class="card-index"></span>
+        <span class="card-text"></span>
+        <button class="icon-btn del" title="Remove">✕</button>
+      </div>
+      <div class="card-grid">
+        <label class="row">
+          <span>Style</span>
+          <select class="style-select">
+            <option value="headline">Headline reveal</option>
+            <option value="read-along">Read-along</option>
+            <option value="spotlight">Spotlight</option>
+            <option value="box">Box call-out</option>
+          </select>
+        </label>
+        <label class="row">
+          <span>Duration (s)</span>
+          <input class="dur-input" type="number" min="0.5" max="20" step="0.1" value="3" />
+        </label>
+        <label class="row">
+          <span>Highlight</span>
+          <input class="hl-input" type="color" value="#ffd400" />
+        </label>
+        <label class="row">
+          <span>Border</span>
+          <input class="bd-input" type="color" value="#ff2d55" />
+        </label>
+      </div>
+      <label class="narr-row">
+        <span>Narration</span>
+        <textarea class="narr-input" rows="2" placeholder="Spoken line for this highlight…"></textarea>
+      </label>
+    </div>
+  </template>
+
+  <!-- Export progress overlay -->
+  <div id="export-overlay" class="overlay hidden">
+    <div class="overlay-box">
+      <h3 id="export-title">Exporting…</h3>
+      <div class="progress"><div id="export-bar" class="progress-bar"></div></div>
+      <p id="export-status" class="muted">Rendering frames…</p>
+    </div>
+  </div>
+
+  <script src="vendor/pdf.min.js"></script>
+  <script src="pdf-view.js"></script>
+  <script src="highlights.js"></script>
+  <script src="animator.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>
