@@ -1,0 +1,29 @@
+{
+  "description": "Seed list of top English-language YouTube creators. Per project constraints, excludes: non-English channels, music labels/artists, gaming channels, media companies, and kids' channels.",
+  "asOf": "2026-07-20",
+  "channels": [
+    { "name": "MrBeast", "handle": "@MrBeast", "subscribersM": 460, "category": "Challenge & Stunts", "country": "US" },
+    { "name": "Stokes Twins", "handle": "@stokestwins", "subscribersM": 141, "category": "Challenge & Stunts", "country": "US" },
+    { "name": "Mark Rober", "handle": "@MarkRober", "subscribersM": 68, "category": "Science & Engineering", "country": "US" },
+    { "name": "Dude Perfect", "handle": "@DudePerfect", "subscribersM": 61, "category": "Sports & Comedy", "country": "US" },
+    { "name": "Kurzgesagt – In a Nutshell", "handle": "@kurzgesagt", "subscribersM": 24, "category": "Education & Explainers", "country": "DE (English channel)" },
+    { "name": "Mrwhosetheboss", "handle": "@Mrwhosetheboss", "subscribersM": 22, "category": "Tech", "country": "UK" },
+    { "name": "Veritasium", "handle": "@veritasium", "subscribersM": 21, "category": "Education & Explainers", "country": "US" },
+    { "name": "Ryan Trahan", "handle": "@ryan", "subscribersM": 20, "category": "Challenge & Stunts", "country": "US" },
+    { "name": "MKBHD", "handle": "@mkbhd", "subscribersM": 20, "category": "Tech", "country": "US" },
+    { "name": "Vsauce", "handle": "@Vsauce", "subscribersM": 18, "category": "Education & Explainers", "country": "US" },
+    { "name": "NileRed", "handle": "@NileRed", "subscribersM": 11, "category": "Science & Engineering", "country": "CA" }
+  ],
+  "excludedExamples": [
+    { "name": "T-Series", "reason": "music label / non-English" },
+    { "name": "Cocomelon", "reason": "kids" },
+    { "name": "SET India", "reason": "media company / non-English" },
+    { "name": "Like Nastya", "reason": "kids" },
+    { "name": "Kids Diana Show", "reason": "kids" },
+    { "name": "Vlad and Niki", "reason": "kids" },
+    { "name": "Zee Music Company", "reason": "music label" },
+    { "name": "WWE", "reason": "media company" },
+    { "name": "PewDiePie", "reason": "gaming" },
+    { "name": "5-Minute Crafts", "reason": "media company (TheSoul Publishing)" }
+  ]
+}
